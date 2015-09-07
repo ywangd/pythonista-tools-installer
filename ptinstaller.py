@@ -1,6 +1,6 @@
 # code: utf-8
 """
-Client program to help install tools announced on the Pythonista Tools GitHub repo.
+Installer program to help install tools registered on the Pythonista Tools GitHub repo.
 """
 import os
 import sys
@@ -26,11 +26,14 @@ __version__ = '1.0.0'
 class InvalidGistURLError(Exception):
     pass
 
+
 class MultipleFilesInGistError(Exception):
     pass
 
+
 class NoFilesInGistError(Exception):
     pass
+
 
 class GistDownloadError(Exception):
     pass
@@ -104,7 +107,6 @@ class PythonistaToolsRepo(object):
 
 
 class GitHubRepoInstaller(object):
-
     PATTERN_USER_REPO = r'^https?://github.com/(.+)/(.+)'
 
     @staticmethod
@@ -190,6 +192,58 @@ class GistInstaller(object):
             outs.write(content)
 
 
+class InstallButton(object):
+    INSTALL = '  Install  '
+    UNINSTALL = '  Uninstall  '
+    LOADING = '  Loading  '
+
+    def __init__(self, app, cell, category_name, tool_name, tool_url):
+        self.app, self.cell = app, cell
+        self.category_name, self.tool_name, self.tool_url = category_name, tool_name, tool_url
+
+        if self.app.is_tool_installed(self.category_name, tool_name):
+            btn = ui.Button(title=self.UNINSTALL)
+            btn.action = functools.partial(self.app.uninstall, self)
+        else:
+            btn = ui.Button(title=self.INSTALL)
+            btn.action = functools.partial(self.app.install, self)
+
+        self.cell.content_view.add_subview(btn)
+        btn.font = ('Helvetica', 12)
+        btn.background_color = 'white'
+        btn.tint_color = 'blue'
+        btn.border_width = 1
+        btn.border_color = 'blue'
+        btn.corner_radius = 5
+        self.btn = btn
+        self.ensure_layout()
+
+    def set_state_loading(self):
+        if self.btn.title == self.INSTALL:
+            self.btn.title = self.LOADING
+            self.btn.action = None
+            self.ensure_layout()
+
+    def set_state_install(self):
+        if self.btn.title == self.UNINSTALL:
+            self.btn.title = self.INSTALL
+            self.btn.action = functools.partial(self.app.install, self)
+            self.ensure_layout()
+
+    def set_state_uninstall(self):
+        if self.btn.title == self.LOADING:
+            self.btn.title = self.UNINSTALL
+            self.btn.action = functools.partial(self.app.uninstall, self)
+            self.ensure_layout()
+
+    def ensure_layout(self):
+        self.btn.size_to_fit()
+        self.btn.width = 58
+        self.btn.x = self.app.nav_view.width - self.btn.width - 8
+        self.btn.y = (self.cell.height - self.btn.height) / 2
+        self.cell.set_needs_display()
+
+
 class ToolsTable(object):
     def __init__(self, app, category_name, category_url):
         self.app = app
@@ -217,29 +271,11 @@ class ToolsTable(object):
         tool_url = self.tools_dict[tool_name]['url']
         cell.text_label.text = tool_name
         cell.detail_text_label.text = self.tools_dict[tool_name]['description']
-        if self.app.is_tool_installed(self.category_name, tool_name):
-            btn = ui.Button(title='  Uninstall  ')
-            btn.action = functools.partial(self.app.uninstall,
-                                           self.category_name,
-                                           tool_name,
-                                           tool_url)
-        else:
-            btn = ui.Button(title='  Install  ')
-            btn.action = functools.partial(self.app.install,
-                                           self.category_name,
-                                           tool_name,
-                                           tool_url)
-        cell.content_view.add_subview(btn)
-        btn.font = ('Helvetica', 12)
-        btn.background_color = 'white'
-        btn.tint_color = 'blue'
-        btn.border_width = 1
-        btn.border_color = 'green'
-        btn.corner_radius = 5
-        btn.font = (btn.font[0], 18)
-        btn.size_to_fit()
-        btn.x = self.app.nav_view.width - btn.width - 20
-        btn.y = (cell.height - btn.height) / 2
+        # TODO: Cell does not increase its height when label has multi lines of text
+        # cell.detail_text_label.line_break_mode = ui.LB_WORD_WRAP
+        # cell.detail_text_label.number_of_lines = 0
+
+        InstallButton(self.app, cell, self.category_name, tool_name, tool_url)
 
         return cell
 
@@ -297,42 +333,38 @@ class PythonistaToolsInstaller(object):
     def is_tool_installed(category_name, tool_name):
         return os.path.exists(PythonistaToolsInstaller.get_target_folder(category_name, tool_name))
 
-    def install(self, category_name, tool_name, tool_url, sender):
-        sender.title = '  Loading  '
-        sender.size_to_fit()
-        target_folder = PythonistaToolsInstaller.get_target_folder(category_name, tool_name)
-        if not os.path.exists(target_folder):
-            os.makedirs(target_folder)
-
-        self._install(category_name, tool_name, tool_url, target_folder, sender)
+    def install(self, btn, sender):
+        btn.set_state_loading()
+        target_folder = PythonistaToolsInstaller.get_target_folder(btn.category_name,
+                                                                   btn.tool_name)
+        self._install(btn, target_folder)
 
     @ui.in_background
-    def _install(self, category_name, tool_name, tool_url, target_folder, sender):
+    def _install(self, btn, target_folder):
         try:
-            if self.gist_installer.get_gist_id(tool_url):
-                self.gist_installer.install(tool_url, target_folder)
-            elif self.github_installer.get_github_user_repo(tool_url):
-                self.github_installer.install(tool_url, target_folder)
+            if self.gist_installer.get_gist_id(btn.tool_url):
+                if not os.path.exists(target_folder):
+                    os.makedirs(target_folder)
+                self.gist_installer.install(btn.tool_url, target_folder)
+            elif self.github_installer.get_github_user_repo(btn.tool_url):
+                if not os.path.exists(target_folder):
+                    os.makedirs(target_folder)
+                self.github_installer.install(btn.tool_url, target_folder)
             else:  # any other url types, including iTunes
-                webbrowser.open(tool_url)
-            sender.title = '  Uninstall  '
-            sender.action = functools.partial(self.uninstall,
-                                              category_name, tool_name, tool_url)
-            sender.size_to_fit()
-            console.hud_alert('%s installed' % tool_name, 'success', 1.0)
+                webbrowser.open(btn.tool_url)
+            btn.set_state_uninstall()
+            console.hud_alert('%s installed' % btn.tool_name, 'success', 1.0)
         except Exception as e:
             sys.stderr.write('%s\n' % repr(e))
             console.hud_alert('Installation failed', 'error', 1.0)
 
-    def uninstall(self, category_name, tool_name, tool_url, sender):
-        target_folder = PythonistaToolsInstaller.get_target_folder(category_name, tool_name)
+    def uninstall(self, btn, sender):
+        target_folder = PythonistaToolsInstaller.get_target_folder(btn.category_name,
+                                                                   btn.tool_name)
         if os.path.exists(target_folder):
             shutil.rmtree(target_folder)
-        sender.title = '  Install  '
-        sender.action = functools.partial(self.install,
-                                          category_name, tool_name, tool_url)
-        sender.size_to_fit()
-        console.hud_alert('%s uninstalled' % tool_name, 'success', 1.0)
+        btn.set_state_install()
+        console.hud_alert('%s uninstalled' % btn.tool_name, 'success', 1.0)
 
     def launch(self):
         self.nav_view.present('fullscreen')
