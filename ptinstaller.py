@@ -53,7 +53,7 @@ class PythonistaToolsRepo(object):
     Manage and gather information from the Pythonista Tools repo.
     """
 
-    PATTERN_NAME_URL_DESCRIPTION = re.compile(r'^\| +\[([^]]+)\] *\[([^]]*)\][^|]+\| (.*) \|', re.MULTILINE)
+    PATTERN_NAME_URL_DESCRIPTION = re.compile(r'^\| +\[([^]]+)\] *(\[([^]]*)\])?[^|]+\| (.*) \|', re.MULTILINE)
     PATTERN_NAME_URL = re.compile(r'^\[([^]]+)\]: *(.*)', re.MULTILINE)
 
     def __init__(self):
@@ -87,7 +87,7 @@ class PythonistaToolsRepo(object):
         md = requests.get(url).text
         # Find all script name and its url
         tools_dict = {}
-        for name, url, description in self.PATTERN_NAME_URL_DESCRIPTION.findall(md):
+        for name, _, url, description in self.PATTERN_NAME_URL_DESCRIPTION.findall(md):
             tools_dict[name] = {'url': url, 'description': description.strip()}
 
         for name, url in self.PATTERN_NAME_URL.findall(md):
