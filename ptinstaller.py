@@ -53,7 +53,7 @@ class PythonistaToolsRepo(object):
     Manage and gather information from the Pythonista Tools repo.
     """
 
-    PATTERN_NAME_URL_DESCRIPTION = re.compile(r'^\| +\[([^]]+)\] *(\[([^]]*)\])?[^|]+\| (.*) \|', re.MULTILINE)
+    PATTERN_NAME_URL_DESCRIPTION = re.compile(r'^\| *\[([^]]+)\] *(\[([^]]*)\])?[^|]+\| *(.*) *\|', re.MULTILINE)
     PATTERN_NAME_URL = re.compile(r'^\[([^]]+)\]: *(.*)', re.MULTILINE)
 
     def __init__(self):
