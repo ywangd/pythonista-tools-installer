@@ -112,11 +112,11 @@ class GitHubRepoInstaller(object):
     @staticmethod
     def get_github_user_repo(url):
         m = re.match(GitHubRepoInstaller.PATTERN_USER_REPO, url)
-        return m.groups if m else None
+        return m.groups() if m else None
 
     def download(self, url):
         user_name, repo_name = self.get_github_user_repo(url)
-        zipfile_url = urlparse.urljoin(url, '%s/%s/archive/master.zip' % (user_name, repo_name))
+        zipfile_url = urlparse.urljoin(url, '/%s/%s/archive/master.zip' % (user_name, repo_name))
         tmp_zipfile = os.path.join(os.environ['TMPDIR'], '%s-master.zip' % repo_name)
 
         r = requests.get(zipfile_url)
@@ -128,26 +128,25 @@ class GitHubRepoInstaller(object):
     def install(self, url, target_folder):
 
         tmp_zipfile = self.download(url)
-        if tmp_zipfile:
-            base_dir = os.path.splitext(os.path.basename(tmp_zipfile))[0] + '/'
-            with open(tmp_zipfile, 'rb') as ins:
-                zipfp = zipfile.ZipFile(ins)
-                for name in zipfp.namelist():
-                    data = zipfp.read(name)
-                    name = name.split(base_dir, 1)[-1]  # strip the top-level target_folder
-                    if name == '':  # skip top-level target_folder
-                        continue
+        base_dir = os.path.splitext(os.path.basename(tmp_zipfile))[0] + '/'
+        with open(tmp_zipfile, 'rb') as ins:
+            zipfp = zipfile.ZipFile(ins)
+            for name in zipfp.namelist():
+                data = zipfp.read(name)
+                name = name.split(base_dir, 1)[-1]  # strip the top-level target_folder
+                if name == '':  # skip top-level target_folder
+                    continue
 
-                    fname = os.path.join(target_folder, name)
-                    if fname.endswith('/'):  # A target_folder
-                        if not os.path.exists(fname):
-                            os.makedirs(fname)
-                    else:
-                        fp = open(fname, 'wb')
-                        try:
-                            fp.write(data)
-                        finally:
-                            fp.close()
+                fname = os.path.join(target_folder, name)
+                if fname.endswith('/'):  # A target_folder
+                    if not os.path.exists(fname):
+                        os.makedirs(fname)
+                else:
+                    fp = open(fname, 'wb')
+                    try:
+                        fp.write(data)
+                    finally:
+                        fp.close()
 
 
 class GistInstaller(object):
@@ -215,33 +214,23 @@ class InstallButton(object):
         btn.border_width = 1
         btn.border_color = 'blue'
         btn.corner_radius = 5
+        btn.size_to_fit()
+        btn.width = 58
+        btn.x = self.app.nav_view.width - btn.width - 8
+        btn.y = (self.cell.height - btn.height) / 2
         self.btn = btn
-        self.ensure_layout()
 
     def set_state_loading(self):
-        if self.btn.title == self.INSTALL:
-            self.btn.title = self.LOADING
-            self.btn.action = None
-            self.ensure_layout()
+        self.btn.title = self.LOADING
+        self.btn.action = None
 
     def set_state_install(self):
-        if self.btn.title == self.UNINSTALL:
-            self.btn.title = self.INSTALL
-            self.btn.action = functools.partial(self.app.install, self)
-            self.ensure_layout()
+        self.btn.title = self.INSTALL
+        self.btn.action = functools.partial(self.app.install, self)
 
     def set_state_uninstall(self):
-        if self.btn.title == self.LOADING:
-            self.btn.title = self.UNINSTALL
-            self.btn.action = functools.partial(self.app.uninstall, self)
-            self.ensure_layout()
-
-    def ensure_layout(self):
-        self.btn.size_to_fit()
-        self.btn.width = 58
-        self.btn.x = self.app.nav_view.width - self.btn.width - 8
-        self.btn.y = (self.cell.height - self.btn.height) / 2
-        self.cell.set_needs_display()
+        self.btn.title = self.UNINSTALL
+        self.btn.action = functools.partial(self.app.uninstall, self)
 
 
 class ToolsTable(object):
@@ -299,6 +288,7 @@ class CategoriesTable(object):
             for category_name in sorted(self.categories_dict.keys())
         )
         categories_listdatasource.action = self.category_item_tapped
+        categories_listdatasource.delete_enabled = False
 
         self.view.data_source = categories_listdatasource
         self.view.delegate = categories_listdatasource
@@ -322,9 +312,6 @@ class PythonistaToolsInstaller(object):
         self.nav_view = ui.NavigationView(categories_table.view)
         self.nav_view.name = 'Pythonista Tools Installer'
 
-    def repo_type(self, url):
-        re.compile(r'^http(s?)://gist.github.com/')
-
     @staticmethod
     def get_target_folder(category_name, tool_name):
         return os.path.join(PythonistaToolsInstaller.INSTALLATION_ROOT, category_name, tool_name)
@@ -335,12 +322,12 @@ class PythonistaToolsInstaller(object):
 
     def install(self, btn, sender):
         btn.set_state_loading()
-        target_folder = PythonistaToolsInstaller.get_target_folder(btn.category_name,
-                                                                   btn.tool_name)
-        self._install(btn, target_folder)
+        self._install(btn)
 
     @ui.in_background
-    def _install(self, btn, target_folder):
+    def _install(self, btn):
+        target_folder = PythonistaToolsInstaller.get_target_folder(btn.category_name,
+                                                                   btn.tool_name)
         try:
             if self.gist_installer.get_gist_id(btn.tool_url):
                 if not os.path.exists(target_folder):
@@ -355,7 +342,15 @@ class PythonistaToolsInstaller(object):
             btn.set_state_uninstall()
             console.hud_alert('%s installed' % btn.tool_name, 'success', 1.0)
         except Exception as e:
+            # clean up the directory
+            if os.path.exists(target_folder):
+                shutil.rmtree(target_folder)
+            btn.set_state_install()  # revert the state
+            # Display some debug messages
+            etype, evalue, tb = sys.exc_info()
             sys.stderr.write('%s\n' % repr(e))
+            import traceback
+            traceback.print_exception(etype, evalue, tb)
             console.hud_alert('Installation failed', 'error', 1.0)
 
     def uninstall(self, btn, sender):
