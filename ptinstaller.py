@@ -15,6 +15,7 @@ import zipfile
 try:
     import ui
     import console
+    import webbrowser
 except ImportError:
     import dummyui as ui
     import dummyconsole as console
@@ -49,23 +50,14 @@ class PythonistaToolsRepo(object):
     Manage and gather information from the Pythonista Tools repo.
     """
 
+    PATTERN_NAME_URL_DESCRIPTION = re.compile(r'^\| +\[([^]]+)\] *\[([^]]*)\][^|]+\| (.*) \|', re.MULTILINE)
     PATTERN_NAME_URL = re.compile(r'^\[([^]]+)\]: *(.*)', re.MULTILINE)
-    PATTERN_NAME_DESCRIPTION = re.compile(r'^\| +\[([^]]+)\][^|]+\| (.*) \|', re.MULTILINE)
 
     def __init__(self):
         self.owner = 'Pythonista-Tools'
         self.repo = 'Pythonista-Tools'
 
         self.cached_tools_dict = {}
-
-    def get_contents(self):
-        """
-        Build a dict from the repo's contents. The dict is first keyed by the tools category,
-        then tool name. The repo type is not used as a key as this difference should be
-        invisible to the users when the installation is handled automatically. The entries
-        of the dict are also dict of following keys: description, url.
-        :rtype dict:
-        """
 
     def get_categories(self):
         """
@@ -92,40 +84,44 @@ class PythonistaToolsRepo(object):
         md = requests.get(url).text
         # Find all script name and its url
         tools_dict = {}
-        for script_name, script_url in self.PATTERN_NAME_URL.findall(md):
-            tools_dict[script_name] = {'url': script_url, 'description': ''}
+        for name, url, description in self.PATTERN_NAME_URL_DESCRIPTION.findall(md):
+            tools_dict[name] = {'url': url, 'description': description.strip()}
 
-        for script_name, script_description in self.PATTERN_NAME_DESCRIPTION.findall(md):
-            if script_name in tools_dict:
-                tools_dict[script_name]['description'] = script_description
+        for name, url in self.PATTERN_NAME_URL.findall(md):
+            if name in tools_dict:
+                tools_dict[name]['url'] = url
             else:
-                sys.stderr.write('URL not found for script: %s\n' % script_name)
+                for tool_name, tool_content in tools_dict.items():
+                    if tool_content['url'] == name:
+                        tool_content['url'] = url
+                    if tool_content['description'] == '[%s]' % name:
+                        tool_content['description'] = url
 
-        # Filter out tools that has no associated descriptions.
-        # TODO: this needs to be improved
-        tools_dict = {k: v for k, v in tools_dict.items() if v['description'] != ''}
+        # Filter out tools that has no download url
+        self.cached_tools_dict[url] = {k: v for k, v in tools_dict.items() if v['url']}
 
-        return tools_dict
+        return self.cached_tools_dict[url]
 
 
 class GitHubRepoInstaller(object):
 
-    def download(self, url):
-        parsed_result = urlparse.urlsplit(url)
-        repo_name = parsed_result.path.split('/')[-1]
+    PATTERN_USER_REPO = r'^https?://github.com/(.+)/(.+)'
 
-        zipfile_url = '/'.join([url, 'archive/master.zip'])
+    @staticmethod
+    def get_github_user_repo(url):
+        m = re.match(GitHubRepoInstaller.PATTERN_USER_REPO, url)
+        return m.groups if m else None
+
+    def download(self, url):
+        user_name, repo_name = self.get_github_user_repo(url)
+        zipfile_url = urlparse.urljoin(url, '%s/%s/archive/master.zip' % (user_name, repo_name))
         tmp_zipfile = os.path.join(os.environ['TMPDIR'], '%s-master.zip' % repo_name)
 
-        try:
-            r = requests.get(zipfile_url)
-            with open(tmp_zipfile, 'wb') as outs:
-                outs.write(r.content)
+        r = requests.get(zipfile_url)
+        with open(tmp_zipfile, 'wb') as outs:
+            outs.write(r.content)
 
-            return tmp_zipfile
-
-        except:  # TODO: better error handling
-            console.hud_alert('Download failed!', 'error', 1.0)
+        return tmp_zipfile
 
     def install(self, url, target_folder):
 
@@ -155,8 +151,9 @@ class GitHubRepoInstaller(object):
 class GistInstaller(object):
     PATTERN_GIST_ID = r'http(s?)://gist.github.com/([0-9a-zA-Z]*)/([0-9a-f]*)'
 
-    def get_gist_id(self, url):
-        m = re.match(self.PATTERN_GIST_ID, url)
+    @staticmethod
+    def get_gist_id(url):
+        m = re.match(GistInstaller.PATTERN_GIST_ID, url)
         return m.group(3) if m else None
 
     def download(self, url):
@@ -287,45 +284,48 @@ class PythonistaToolsInstaller(object):
         categories_table = CategoriesTable(self)
 
         self.nav_view = ui.NavigationView(categories_table.view)
-        self.nav_view.name = 'Pythonista Tools Client'
+        self.nav_view.name = 'Pythonista Tools Installer'
+
+    def repo_type(self, url):
+        re.compile(r'^http(s?)://gist.github.com/')
+
+    @staticmethod
+    def get_target_folder(category_name, tool_name):
+        return os.path.join(PythonistaToolsInstaller.INSTALLATION_ROOT, category_name, tool_name)
 
     @staticmethod
     def is_tool_installed(category_name, tool_name):
-        target_folder = os.path.join(PythonistaToolsInstaller.INSTALLATION_ROOT,
-                                     category_name, tool_name)
-        return os.path.exists(target_folder)
+        return os.path.exists(PythonistaToolsInstaller.get_target_folder(category_name, tool_name))
 
     def install(self, category_name, tool_name, tool_url, sender):
-        sender.title = '  Installing  '
+        sender.title = '  Loading  '
         sender.size_to_fit()
-        target_folder = os.path.join(PythonistaToolsInstaller.INSTALLATION_ROOT,
-                                     category_name, tool_name)
+        target_folder = PythonistaToolsInstaller.get_target_folder(category_name, tool_name)
         if not os.path.exists(target_folder):
             os.makedirs(target_folder)
 
-        self._instsall(category_name, tool_name, tool_url, target_folder, sender)
+        self._install(category_name, tool_name, tool_url, target_folder, sender)
 
     @ui.in_background
-    def _instsall(self, category_name, tool_name, tool_url, target_folder, sender):
+    def _install(self, category_name, tool_name, tool_url, target_folder, sender):
         try:
-            if self.gist_installer.get_gist_id(tool_url) is not None:
+            if self.gist_installer.get_gist_id(tool_url):
                 self.gist_installer.install(tool_url, target_folder)
-            else:
+            elif self.github_installer.get_github_user_repo(tool_url):
                 self.github_installer.install(tool_url, target_folder)
+            else:  # any other url types, including iTunes
+                webbrowser.open(tool_url)
             sender.title = '  Uninstall  '
             sender.action = functools.partial(self.uninstall,
                                               category_name, tool_name, tool_url)
             sender.size_to_fit()
             console.hud_alert('%s installed' % tool_name, 'success', 1.0)
         except Exception as e:
-            print repr(e)
+            sys.stderr.write('%s\n' % repr(e))
             console.hud_alert('Installation failed', 'error', 1.0)
 
     def uninstall(self, category_name, tool_name, tool_url, sender):
-        sender.title = '  Uninstalling  '
-        sender.size_to_fit()
-        target_folder = os.path.join(PythonistaToolsInstaller.INSTALLATION_ROOT,
-                                     category_name, tool_name)
+        target_folder = PythonistaToolsInstaller.get_target_folder(category_name, tool_name)
         if os.path.exists(target_folder):
             shutil.rmtree(target_folder)
         sender.title = '  Install  '
