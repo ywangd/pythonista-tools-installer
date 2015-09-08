@@ -74,36 +74,34 @@ class PythonistaToolsRepo(object):
                                                          'sha': content['sha']}
         return categories
 
-    def get_tools_from_md(self, url):
+    def get_tools_from_md(self, url_md):
         """
         Retrieve markdown file from the given URL and parse its content to build a dict
         of tools.
         :return:
         """
         # If results are available in the cache, avoid hitting the web
-        if url in self.cached_tools_dict:
-            return self.cached_tools_dict[url]
+        if url_md not in self.cached_tools_dict:
+            md = requests.get(url_md).text
+            # Find all script name and its url
+            tools_dict = {}
+            for name, _, url, description in self.PATTERN_NAME_URL_DESCRIPTION.findall(md):
+                tools_dict[name] = {'url': url, 'description': description.strip()}
 
-        md = requests.get(url).text
-        # Find all script name and its url
-        tools_dict = {}
-        for name, _, url, description in self.PATTERN_NAME_URL_DESCRIPTION.findall(md):
-            tools_dict[name] = {'url': url, 'description': description.strip()}
+            for name, url in self.PATTERN_NAME_URL.findall(md):
+                if name in tools_dict:
+                    tools_dict[name]['url'] = url
+                else:
+                    for tool_name, tool_content in tools_dict.items():
+                        if tool_content['url'] == name:
+                            tool_content['url'] = url
+                        if tool_content['description'] == '[%s]' % name:
+                            tool_content['description'] = url
 
-        for name, url in self.PATTERN_NAME_URL.findall(md):
-            if name in tools_dict:
-                tools_dict[name]['url'] = url
-            else:
-                for tool_name, tool_content in tools_dict.items():
-                    if tool_content['url'] == name:
-                        tool_content['url'] = url
-                    if tool_content['description'] == '[%s]' % name:
-                        tool_content['description'] = url
+            # Filter out tools that has no download url
+            self.cached_tools_dict[url_md] = {k: v for k, v in tools_dict.items() if v['url']}
 
-        # Filter out tools that has no download url
-        self.cached_tools_dict[url] = {k: v for k, v in tools_dict.items() if v['url']}
-
-        return self.cached_tools_dict[url]
+        return self.cached_tools_dict[url_md]
 
 
 class GitHubRepoInstaller(object):
