@@ -47,7 +47,6 @@ class GitHubAPI(object):
         r = requests.get(urlparse.urljoin(GitHubAPI.API_URL, 'repos/{}/{}/contents'.format(owner, repo)))
         return r.json()
 
-
 class PythonistaToolsRepo(object):
     """
     Manage and gather information from the Pythonista Tools repo.
@@ -198,37 +197,39 @@ class InstallButton(object):
         self.app, self.cell = app, cell
         self.category_name, self.tool_name, self.tool_url = category_name, tool_name, tool_url
 
-        if self.app.is_tool_installed(self.category_name, tool_name):
-            btn = ui.Button(title=self.UNINSTALL)
-            btn.action = functools.partial(self.app.uninstall, self)
-        else:
-            btn = ui.Button(title=self.INSTALL)
-            btn.action = functools.partial(self.app.install, self)
+        self.btn = ui.Button()
+        self.cell.content_view.add_subview(self.btn)
+        self.btn.font = ('Helvetica', 12)
+        self.btn.background_color = 'white'
+        self.btn.border_width = 1
+        self.btn.corner_radius = 5
+        self.btn.size_to_fit()
+        self.btn.width = 58
+        self.btn.x = self.app.nav_view.width - self.btn.width - 8
+        self.btn.y = (self.cell.height - self.btn.height) / 2
 
-        self.cell.content_view.add_subview(btn)
-        btn.font = ('Helvetica', 12)
-        btn.background_color = 'white'
-        btn.tint_color = 'blue'
-        btn.border_width = 1
-        btn.border_color = 'blue'
-        btn.corner_radius = 5
-        btn.size_to_fit()
-        btn.width = 58
-        btn.x = self.app.nav_view.width - btn.width - 8
-        btn.y = (self.cell.height - btn.height) / 2
-        self.btn = btn
+        if self.app.is_tool_installed(self.category_name, tool_name):
+            self.set_state_uninstall()
+        else:
+            self.set_state_install()
 
     def set_state_loading(self):
         self.btn.title = self.LOADING
         self.btn.action = None
+        self.btn.tint_color = 'green'
+        self.btn.border_color = 'green'
 
     def set_state_install(self):
         self.btn.title = self.INSTALL
         self.btn.action = functools.partial(self.app.install, self)
+        self.btn.tint_color = 'blue'
+        self.btn.border_color = 'blue'
 
     def set_state_uninstall(self):
         self.btn.title = self.UNINSTALL
         self.btn.action = functools.partial(self.app.uninstall, self)
+        self.btn.tint_color = (0, 0.478, 1)
+        self.btn.border_color = (0, 0.478, 1)
 
 
 class ToolsTable(object):
@@ -278,24 +279,41 @@ class CategoriesTable(object):
         self.app = app
         self.view = ui.TableView(frame=(0, 0, 640, 640))
         self.view.name = 'Categories'
+        self.categories_dict = {}
+        self.load()
 
-        self.categories_dict = self.app.repo.get_categories()
+    @ui.in_background
+    def load(self):
+        self.app.activity_indicator.start()
+        try:
+            self.categories_dict = self.app.repo.get_categories()
+            categories_listdatasource = ui.ListDataSource(
+                {'title': category_name, 'accessory_type': 'disclosure_indicator'}
+                for category_name in sorted(self.categories_dict.keys())
+            )
+            categories_listdatasource.action = self.category_item_tapped
+            categories_listdatasource.delete_enabled = False
 
-        categories_listdatasource = ui.ListDataSource(
-            {'title': category_name, 'accessory_type': 'disclosure_indicator'}
-            for category_name in sorted(self.categories_dict.keys())
-        )
-        categories_listdatasource.action = self.category_item_tapped
-        categories_listdatasource.delete_enabled = False
+            self.view.data_source = categories_listdatasource
+            self.view.delegate = categories_listdatasource
+            self.view.reload()
+        except Exception as e:
+            console.hud_alert('Failed to load Categories', 'error', 1.0)
+        finally:
+            self.app.activity_indicator.stop()
 
-        self.view.data_source = categories_listdatasource
-        self.view.delegate = categories_listdatasource
-
+    @ui.in_background
     def category_item_tapped(self, sender):
-        category_name = sender.items[sender.selected_row]['title']
-        category_url = self.categories_dict[category_name]['url']
-        tools_table = ToolsTable(self.app, category_name, category_url)
-        self.app.nav_view.push_view(tools_table.view)
+        self.app.activity_indicator.start()
+        try:
+            category_name = sender.items[sender.selected_row]['title']
+            category_url = self.categories_dict[category_name]['url']
+            tools_table = ToolsTable(self.app, category_name, category_url)
+            self.app.nav_view.push_view(tools_table.view)
+        except Exception as e:
+            console.hud_alert('Failed to load tools list', 'error', 1.0)
+        finally:
+            self.app.activity_indicator.stop()
 
 
 class PythonistaToolsInstaller(object):
@@ -309,6 +327,12 @@ class PythonistaToolsInstaller(object):
 
         self.nav_view = ui.NavigationView(categories_table.view)
         self.nav_view.name = 'Pythonista Tools Installer'
+
+        self.activity_indicator = ui.ActivityIndicator(flex='LTRB')
+        self.activity_indicator.style = 10
+        self.nav_view.add_subview(self.activity_indicator)
+        self.activity_indicator.frame = (0, 0, self.nav_view.width, self.nav_view.height)
+        self.activity_indicator.bring_to_front()
 
     @staticmethod
     def get_target_folder(category_name, tool_name):
@@ -324,6 +348,7 @@ class PythonistaToolsInstaller(object):
 
     @ui.in_background
     def _install(self, btn):
+        self.activity_indicator.start()
         target_folder = PythonistaToolsInstaller.get_target_folder(btn.category_name,
                                                                    btn.tool_name)
         try:
@@ -350,6 +375,8 @@ class PythonistaToolsInstaller(object):
             import traceback
             traceback.print_exception(etype, evalue, tb)
             console.hud_alert('Installation failed', 'error', 1.0)
+        finally:
+            self.activity_indicator.stop()
 
     def uninstall(self, btn, sender):
         target_folder = PythonistaToolsInstaller.get_target_folder(btn.category_name,
