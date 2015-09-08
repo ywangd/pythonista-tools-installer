@@ -47,6 +47,7 @@ class GitHubAPI(object):
         r = requests.get(urlparse.urljoin(GitHubAPI.API_URL, 'repos/{}/{}/contents'.format(owner, repo)))
         return r.json()
 
+
 class PythonistaToolsRepo(object):
     """
     Manage and gather information from the Pythonista Tools repo.
@@ -253,7 +254,6 @@ class ToolsTable(object):
         return len(self.tools_dict)
 
     def tableview_cell_for_row(self, tableview, section, row):
-
         cell = ui.TableViewCell('subtitle')
         tool_name = self.tool_names[row]
         tool_url = self.tools_dict[tool_name]['url']
@@ -393,3 +393,4 @@ class PythonistaToolsInstaller(object):
 if __name__ == '__main__':
     ptinstaller = PythonistaToolsInstaller()
     ptinstaller.launch()
+
