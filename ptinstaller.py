@@ -148,7 +148,7 @@ class GitHubRepoInstaller(object):
 
 
 class GistInstaller(object):
-    PATTERN_GIST_ID = r'http(s?)://gist.github.com/([0-9a-zA-Z]*)/([0-9a-f]*)'
+    PATTERN_GIST_ID = r'http(s?)://gist.github.com/([0-9a-zA-Z_-]*)/([0-9a-f]*)'
 
     @staticmethod
     def get_gist_id(url):
