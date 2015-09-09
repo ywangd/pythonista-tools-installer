@@ -323,13 +323,14 @@ class PythonistaToolsInstaller(object):
         self.repo = PythonistaToolsRepo()
         self.github_installer = GitHubRepoInstaller()
         self.gist_installer = GistInstaller()
-        categories_table = CategoriesTable(self)
-
-        self.nav_view = ui.NavigationView(categories_table.view)
-        self.nav_view.name = 'Pythonista Tools Installer'
 
         self.activity_indicator = ui.ActivityIndicator(flex='LTRB')
         self.activity_indicator.style = 10
+
+        categories_table = CategoriesTable(self)
+        self.nav_view = ui.NavigationView(categories_table.view)
+        self.nav_view.name = 'Pythonista Tools Installer'
+
         self.nav_view.add_subview(self.activity_indicator)
         self.activity_indicator.frame = (0, 0, self.nav_view.width, self.nav_view.height)
         self.activity_indicator.bring_to_front()
