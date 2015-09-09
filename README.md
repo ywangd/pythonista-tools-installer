@@ -14,5 +14,8 @@ import requests as r; o=open('ptinstaller.py','w'); o.write(r.get('http://j.mp/p
 
 ## Usage
 Execute the saved `ptinstaller.py` program to launch the UI. Follow the 
-on-screen instruction to browse and install/uninstall scripts.  
-The scripts are by default installed under **`~/Documents/bin/`**.
+on-screen instruction to browse and install/uninstall scripts. The scripts are by default installed under **`~/Documents/bin/`**.
+
+### Screenshots
+
+![1](https://cloud.githubusercontent.com/assets/2344308/9724048/58480568-5614-11e5-9403-d986adf82727.JPG) ![2](https://cloud.githubusercontent.com/assets/2344308/9724050/5e3736e2-5614-11e5-95ba-7333ec7c952d.JPG)
