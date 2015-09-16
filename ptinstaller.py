@@ -27,10 +27,6 @@ class InvalidGistURLError(Exception):
     pass
 
 
-class MultipleFilesInGistError(Exception):
-    pass
-
-
 class NoFilesInGistError(Exception):
     pass
 
@@ -140,11 +136,8 @@ class GitHubRepoInstaller(object):
                     if not os.path.exists(fname):
                         os.makedirs(fname)
                 else:
-                    fp = open(fname, 'wb')
-                    try:
+                    with open(fname, 'wb') as fp:
                         fp.write(data)
-                    finally:
-                        fp.close()
 
 
 class GistInstaller(object):
@@ -160,33 +153,27 @@ class GistInstaller(object):
         if gist_id:
             json_url = 'https://api.github.com/gists/' + gist_id
             try:
-                gist_json = requests.get(json_url).text
-                gist_info = json.loads(gist_json)
+                gist_info = requests.get(json_url).json()
                 files = gist_info['files']
             except:
                 raise GistDownloadError()
-            py_files = []
+            file_info_list = []
             for file_info in files.values():
                 lang = file_info.get('language', None)
-                if lang != 'Python':
+                if lang != 'Python' and not file_info['filename'].endswith('.pyui'):
                     continue
-                py_files.append(file_info)
-            if len(py_files) > 1:
-                raise MultipleFilesInGistError()
-            elif len(py_files) == 0:
+                file_info_list.append(file_info)
+            if len(file_info_list) == 0:
                 raise NoFilesInGistError()
             else:
-                file_info = py_files[0]
-                filename = file_info['filename']
-                content = file_info['content']
-                return filename, content
+                return file_info_list
         else:
             raise InvalidGistURLError()
 
     def install(self, url, target_folder):
-        filename, content = self.download(url)
-        with open(os.path.join(target_folder, filename), 'w') as outs:
-            outs.write(content)
+        for file_info in self.download(url):
+            with open(os.path.join(target_folder, file_info['filename']), 'w') as outs:
+                outs.write(file_info['content'])
 
 
 class InstallButton(object):
