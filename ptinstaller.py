@@ -5,12 +5,13 @@ Installer program to help install tools registered on the Pythonista Tools GitHu
 import os
 import sys
 import requests
-import urlparse
 import re
 import functools
 import shutil
 import json
 import zipfile
+
+from six.moves.urllib.parse import urlparse, urljoin
 
 try:
     import ui
@@ -40,7 +41,7 @@ class GitHubAPI(object):
 
     @staticmethod
     def contents(owner, repo):
-        r = requests.get(urlparse.urljoin(GitHubAPI.API_URL, 'repos/{}/{}/contents'.format(owner, repo)))
+        r = requests.get(urljoin(GitHubAPI.API_URL, 'repos/{}/{}/contents'.format(owner, repo)))
         return r.json()
 
 
