@@ -111,7 +111,7 @@ class GitHubRepoInstaller(object):
 
     def download(self, url):
         user_name, repo_name = self.get_github_user_repo(url)
-        zipfile_url = urlparse.urljoin(url, '/%s/%s/archive/master.zip' % (user_name, repo_name))
+        zipfile_url = urljoin(url, '/%s/%s/archive/master.zip' % (user_name, repo_name))
         tmp_zipfile = os.path.join(os.environ['TMPDIR'], '%s-master.zip' % repo_name)
 
         r = requests.get(zipfile_url)
