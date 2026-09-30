@@ -57,6 +57,12 @@ actual tool code before running it. The installer does not execute it.
 
 The security design, compatibility notes, trust boundaries, and remaining
 limitations are in [SEC-001](docs/SEC-001-installer-security-design.md).
+The complete patch history and verification record are in
+[SEC-002](docs/SEC-002-session-change-record.md). A dated
+[catalog snapshot](examples/ptinstaller-catalog-snapshot-2026-09-29.conf)
+contains 118 calculated digests activated at the user's request. It is an
+operator-approved byte allowlist, not a safety audit; the repository's
+`ptinstaller.conf` keeps the allowlist empty by default.
 
 ## Usage
 Execute the saved `ptinstaller.py` program to launch the UI. Follow the
