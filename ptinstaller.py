@@ -124,6 +124,16 @@ class GistDownloadError(Exception):
     pass
 
 
+class NoActivityIndicator(object):
+    """Keep the installer usable when this optional UI widget is unavailable."""
+
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
+
 class GitHubAPI(object):
     API_URL = 'https://api.github.com'
 
@@ -454,16 +464,21 @@ class PythonistaToolsInstaller(object):
         self.github_installer = GitHubRepoInstaller()
         self.gist_installer = GistInstaller()
 
-        self.activity_indicator = ui.ActivityIndicator(flex='LTRB')
-        self.activity_indicator.style = 10
+        indicator_class = getattr(ui, 'ActivityIndicator', None)
+        if indicator_class is None:
+            self.activity_indicator = NoActivityIndicator()
+        else:
+            self.activity_indicator = indicator_class(flex='LTRB')
+            self.activity_indicator.style = 10
 
         categories_table = CategoriesTable(self)
         self.nav_view = ui.NavigationView(categories_table.view)
         self.nav_view.name = 'Pythonista Tools Installer'
 
-        self.nav_view.add_subview(self.activity_indicator)
-        self.activity_indicator.frame = (0, 0, self.nav_view.width, self.nav_view.height)
-        self.activity_indicator.bring_to_front()
+        if indicator_class is not None:
+            self.nav_view.add_subview(self.activity_indicator)
+            self.activity_indicator.frame = (0, 0, self.nav_view.width, self.nav_view.height)
+            self.activity_indicator.bring_to_front()
     
     @staticmethod
     def get_install_path():

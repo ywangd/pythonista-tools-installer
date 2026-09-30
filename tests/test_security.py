@@ -87,6 +87,19 @@ class SecurityTests(unittest.TestCase):
         self.assertIsNone(p.github_parts('https://github.com.evil.test/example/tool'))
         self.assertIsNone(p.gist_id_from_url('http://gist.github.com/a/deadbeef'))
 
+    def test_startup_without_activity_indicator(self):
+        # Some Pythonista builds do not export this optional widget.
+        with mock.patch.object(p.CategoriesTable, 'load', return_value=None):
+            with mock.patch.object(p.ui, 'TableView', create=True,
+                                   return_value=types.SimpleNamespace()):
+                with mock.patch.object(p.ui, 'NavigationView', create=True) as navigation:
+                    with mock.patch.object(p.ui, 'ActivityIndicator', None, create=True):
+                        installer = p.PythonistaToolsInstaller()
+        self.assertIsInstance(installer.activity_indicator, p.NoActivityIndicator)
+        installer.activity_indicator.start()
+        installer.activity_indicator.stop()
+        navigation.assert_called_once()
+
     def test_archive_traversal_rejected(self):
         data = archive([('tool-root/../escaped.txt', 'bad')])
         with mock.patch.object(p.GitHubRepoInstaller, 'download', return_value=(data, 'a' * 40)):

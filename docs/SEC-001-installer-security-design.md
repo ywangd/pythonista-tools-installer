@@ -65,6 +65,8 @@ The original UI and catalog browsing remain. The intentional compatibility
 break is that installs now require a trusted digest; existing tool directories
 are never replaced, and legacy directories cannot be uninstalled through the
 new UI. There is no automatic migration or rollback of older installs.
+The loading spinner is optional; when `ui.ActivityIndicator` is absent in a
+Pythonista build, background operations continue without that visual widget.
 
 The ZIP digest is of GitHub's archive bytes. If GitHub changes its archive
 encoding for the same commit, installation safely fails until the new bytes

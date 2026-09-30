@@ -11,7 +11,10 @@
 
 The `tests/test_security.py` file is a developer test suite. Its purpose is to
 trigger unsafe cases and verify that the installer refuses them. A result of
-`Ran 11 tests ... OK` is a successful test run; it does **not** install a tool.
+`Ran 12 tests ... OK` is a successful test run; it does **not** install a tool.
+
+The optional `ui.ActivityIndicator` widget is used when Pythonista exposes it.
+If that attribute is absent, the installer now starts without the spinner.
 
 The distributed `ptinstaller.conf` contains a catalog snapshot of 118
 calculated checksums. The user requested that these be active in
