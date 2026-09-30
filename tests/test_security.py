@@ -1,4 +1,5 @@
 import io
+import importlib.util
 import json
 import os
 import shutil
@@ -10,29 +11,35 @@ import zipfile
 from unittest import mock
 from contextlib import redirect_stderr
 from urllib import parse
-
-requests = types.ModuleType('requests')
-requests.RequestException = Exception
-sys.modules['requests'] = requests
-six = types.ModuleType('six')
-six.string_types = (str,)
-moves = types.ModuleType('six.moves')
-moves.urllib = types.ModuleType('six.moves.urllib')
-moves.urllib.parse = parse
-sys.modules['six'] = six
-sys.modules['six.moves'] = moves
-sys.modules['six.moves.urllib'] = moves.urllib
-sys.modules['six.moves.urllib.parse'] = parse
+from pathlib import Path
 
 
-ui = types.ModuleType('ui')
-ui.in_background = lambda fn: fn
-sys.modules['ui'] = ui
-console = types.ModuleType('console')
-console.hud_alert = lambda *args: None
-sys.modules['console'] = console
+def load_isolated_installer():
+    """Load the module with test doubles without altering Pythonista's imports."""
+    requests_stub = types.ModuleType('requests')
+    requests_stub.RequestException = Exception
+    six_stub = types.ModuleType('six')
+    six_stub.string_types = (str,)
+    moves = types.ModuleType('six.moves')
+    moves.urllib = types.ModuleType('six.moves.urllib')
+    moves.urllib.parse = parse
+    ui_stub = types.ModuleType('ui')
+    ui_stub.in_background = lambda fn: fn
+    console_stub = types.ModuleType('console')
+    console_stub.hud_alert = lambda *args: None
+    doubles = {'requests': requests_stub, 'six': six_stub,
+               'six.moves': moves, 'six.moves.urllib': moves.urllib,
+               'six.moves.urllib.parse': parse, 'ui': ui_stub,
+               'console': console_stub}
+    source = str(Path(__file__).resolve().parents[1] / 'ptinstaller.py')
+    spec = importlib.util.spec_from_file_location('_ptinstaller_security_test', source)
+    module = importlib.util.module_from_spec(spec)
+    with mock.patch.dict(sys.modules, doubles):
+        spec.loader.exec_module(module)
+    return module
 
-import ptinstaller as p
+
+p = load_isolated_installer()
 
 
 def archive(members):
@@ -86,6 +93,11 @@ class SecurityTests(unittest.TestCase):
         self.assertIsNone(p.github_parts('https://github.com/example/tool/tree/main'))
         self.assertIsNone(p.github_parts('https://github.com.evil.test/example/tool'))
         self.assertIsNone(p.gist_id_from_url('http://gist.github.com/a/deadbeef'))
+
+    def test_mock_import_restores_global_ui_module(self):
+        original = sys.modules.get('ui')
+        load_isolated_installer()
+        self.assertIs(sys.modules.get('ui'), original)
 
     def test_startup_without_activity_indicator(self):
         # Some Pythonista builds do not export this optional widget.

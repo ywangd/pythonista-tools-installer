@@ -11,10 +11,15 @@
 
 The `tests/test_security.py` file is a developer test suite. Its purpose is to
 trigger unsafe cases and verify that the installer refuses them. A result of
-`Ran 12 tests ... OK` is a successful test run; it does **not** install a tool.
+`Ran 13 tests ... OK` is a successful test run; it does **not** install a tool.
 
 The optional `ui.ActivityIndicator` widget is used when Pythonista exposes it.
 If that attribute is absent, the installer now starts without the spinner.
+Earlier test packages placed a fake `ui` module in Pythonista's module cache;
+this could cause `ui.ActivityIndicator` and `ui.TableView` errors when running
+the installer afterward. The tests now restore all mocked imports. If you ran
+an earlier test package, fully close and reopen Pythonista once before using
+this installer so its real `ui` module is loaded.
 
 The distributed `ptinstaller.conf` contains a catalog snapshot of 118
 calculated checksums. The user requested that these be active in

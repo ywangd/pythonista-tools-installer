@@ -67,6 +67,11 @@ are never replaced, and legacy directories cannot be uninstalled through the
 new UI. There is no automatic migration or rollback of older installs.
 The loading spinner is optional; when `ui.ActivityIndicator` is absent in a
 Pythonista build, background operations continue without that visual widget.
+The first bundled test file used to replace `sys.modules['ui']` globally and
+left the fake module cached. That produced missing `ActivityIndicator` and
+`TableView` errors after tests ran in the same interpreter. The test loader
+now scopes and restores all stub modules; an already affected interpreter
+requires an app restart to restore the real Pythonista module.
 
 The ZIP digest is of GitHub's archive bytes. If GitHub changes its archive
 encoding for the same commit, installation safely fails until the new bytes
