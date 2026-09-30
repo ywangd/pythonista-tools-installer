@@ -8,6 +8,7 @@ import types
 import unittest
 import zipfile
 from unittest import mock
+from contextlib import redirect_stderr
 from urllib import parse
 
 requests = types.ModuleType('requests')
@@ -120,7 +121,8 @@ class SecurityTests(unittest.TestCase):
         with open(original, 'w') as fp:
             fp.write('keep')
         btn = Button()
-        self.app._install(btn)
+        with redirect_stderr(io.StringIO()):
+            self.app._install(btn)
         with open(original) as fp:
             self.assertEqual(fp.read(), 'keep')
         self.assertEqual(btn.state, 'install')
@@ -132,14 +134,16 @@ class SecurityTests(unittest.TestCase):
         with open(unrelated, 'w') as fp:
             fp.write('keep')
         with mock.patch.object(p.GitHubRepoInstaller, 'install', side_effect=ValueError('bad ZIP')):
-            self.app._install(Button())
+            with redirect_stderr(io.StringIO()):
+                self.app._install(Button())
         self.assertEqual(sorted(os.listdir(category)), ['unrelated.txt'])
 
     def test_uninstall_refuses_unmanaged_folder(self):
         target = p.PythonistaToolsInstaller.get_target_folder('Utilities', 'Test Tool')
         os.makedirs(target)
         btn = Button()
-        self.app.uninstall(btn, None)
+        with redirect_stderr(io.StringIO()):
+            self.app.uninstall(btn, None)
         self.assertTrue(os.path.isdir(target))
 
     def test_hash_mismatch_preserves_unrelated_files(self):
@@ -154,14 +158,16 @@ class SecurityTests(unittest.TestCase):
                 Button.tool_url: '0' * 64}}, fp)
         with mock.patch.object(p.GitHubRepoInstaller, 'install', return_value={
                 'source': Button.tool_url, 'revision': 'a' * 40, 'sha256': '1' * 64}):
-            self.app._install(Button())
+            with redirect_stderr(io.StringIO()):
+                self.app._install(Button())
         self.assertFalse(os.path.exists(target))
         self.assertEqual(sorted(os.listdir(category)), ['unrelated.txt'])
 
     def test_missing_hash_refuses_install_without_download(self):
         btn = Button()
         with mock.patch.object(p.GitHubRepoInstaller, 'install') as install:
-            self.app._install(btn)
+            with redirect_stderr(io.StringIO()):
+                self.app._install(btn)
         install.assert_not_called()
         self.assertFalse(os.path.exists(p.PythonistaToolsInstaller.get_target_folder(
             btn.category_name, btn.tool_name)))
